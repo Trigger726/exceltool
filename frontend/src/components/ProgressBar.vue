@@ -14,10 +14,13 @@ const percent = computed(() => Math.round(Math.min(1, Math.max(0, props.ratio ??
 <template>
   <div
     v-if="busy"
+    role="progressbar"
+    :aria-label="stage || '正在处理'"
+    :aria-valuenow="percent"
     class="flex items-center gap-2.5 rounded-control border border-line bg-surface px-3 py-2"
   >
     <Loader2 :size="14" class="shrink-0 animate-spin text-primary" />
-    <span class="shrink-0 text-xs text-ink-muted">{{ stage || '正在处理…' }}</span>
+    <span class="min-w-0 max-w-[45%] truncate text-xs text-ink-muted" :title="stage">{{ stage || '正在处理…' }}</span>
     <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-line-soft">
       <div
         class="h-full rounded-full bg-primary transition-[width] duration-200"

@@ -115,6 +115,13 @@ class CleanResult:
     def row_count(self) -> int:
         return len(self.rows)
 
+    def row_status(self, row: Sequence[Any]) -> str:
+        flags = zip(self.flag_columns, row[len(self.body_columns):-1])
+        active = {name for name, value in flags if value}
+        if active & {REQUIRED_FLAG, FORMAT_FLAG}:
+            return 'anomaly'
+        return 'duplicate' if DUPLICATE_FLAG in active else ''
+
     def summary(self) -> dict:
         return {
             'file': self.name,
@@ -130,6 +137,13 @@ class CleanResult:
             'missing_required_cells': self.stats.get('missing_required_cells', 0),
             'format_anomaly_rows': self.stats.get('format_anomaly_rows', 0),
             'format_anomaly_cells': self.stats.get('format_anomaly_cells', 0),
+            'date_anomaly_cells': self.stats.get('date_anomaly_cells', 0),
+            'number_anomaly_cells': self.stats.get('number_anomaly_cells', 0),
+            'strip_columns': self.stats.get('strip_columns', []),
+            'required_columns': self.stats.get('required_columns', []),
+            'date_columns': self.stats.get('date_columns', []),
+            'number_columns': self.stats.get('number_columns', []),
+            'remove_blank_rows': self.stats.get('remove_blank_rows', False),
             'anomaly_rows': len(self.anomaly_rows),
             'duplicate_action': self.stats.get('duplicate_action', 'mark'),
             'duplicate_action_label': ACTION_LABELS.get(
@@ -138,6 +152,7 @@ class CleanResult:
             'duplicate_key_columns': self.stats.get('duplicate_key_columns', []),
             'flag_columns': list(self.flag_columns),
             'columns': self.columns,
+            'body_columns': list(self.body_columns),
             'warnings': list(self.warnings),
             'timings': dict(self.timings),
         }
@@ -344,6 +359,8 @@ def clean_table(
     missing_required_cells = 0
     format_anomaly_rows = 0
     format_anomaly_cells = 0
+    date_anomaly_cells = 0
+    number_anomaly_cells = 0
 
     total = len(keep) or 1
     for step, position in enumerate(keep, start=1):
@@ -357,10 +374,12 @@ def clean_table(
         for name, index in date_indices:
             problem = _check_date(row, index, name)
             if problem:
+                date_anomaly_cells += 1
                 problems.append(problem)
         for name, index in number_indices:
             problem = _check_number(row, index, name)
             if problem:
+                number_anomaly_cells += 1
                 problems.append(problem)
 
         if missing:
@@ -417,6 +436,13 @@ def clean_table(
             'missing_required_cells': missing_required_cells,
             'format_anomaly_rows': format_anomaly_rows,
             'format_anomaly_cells': format_anomaly_cells,
+            'date_anomaly_cells': date_anomaly_cells,
+            'number_anomaly_cells': number_anomaly_cells,
+            'strip_columns': list(options.strip_columns),
+            'required_columns': list(options.required_columns),
+            'date_columns': list(options.date_columns),
+            'number_columns': list(options.number_columns),
+            'remove_blank_rows': options.remove_blank_rows,
             'duplicate_action': options.duplicate_action,
             'duplicate_key_columns': list(_duplicate_keys(work, options)),
         },
@@ -476,6 +502,7 @@ def clean_file(
         header_row=header_row,
         keep_blank_rows=True,
         label=label,
+        cancel=cancel,
     )
     parsed = (
         CleanOptions.from_payload(options, table.columns)

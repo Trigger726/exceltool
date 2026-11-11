@@ -183,7 +183,8 @@ def _effective_columns(table: TableData, mapping: dict[str, str]) -> list[str]:
 
 
 def _load_sources(
-    sources: Sequence[MergeSource], *, progress: ProgressFn | None = None
+    sources: Sequence[MergeSource], *, progress: ProgressFn | None = None,
+    cancel: threading.Event | None = None,
 ) -> tuple[list[_LoadedSource], list[SourceReport]]:
     if not sources:
         raise ValidationError('请至少添加一个文件')
@@ -218,6 +219,7 @@ def _load_sources(
             sheet=source.sheet,
             header_row=source.header_row,
             label=source.name,
+            cancel=cancel,
         )
         effective = _effective_columns(table, source.mapping)
         loaded.append(_LoadedSource(source=source, table=table, effective_columns=effective))
@@ -307,7 +309,7 @@ def merge_sources(
             progress(stage, max(0.0, min(1.0, ratio)))
 
     report('读取文件', 0.0)
-    loaded, reports = _load_sources(sources, progress=progress)
+    loaded, reports = _load_sources(sources, progress=progress, cancel=cancel)
     plan = _build_plan(loaded, reports, add_source_columns=add_source_columns)
 
     slots = {name: index for index, name in enumerate(plan.body_columns)}

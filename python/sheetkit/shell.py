@@ -11,6 +11,7 @@ native drag-and-drop into a real filesystem path.
 from __future__ import annotations
 
 import json
+import ctypes
 import os
 import sys
 
@@ -22,8 +23,8 @@ INDEX_HTML = os.path.join(WEBUI_DIR, 'index.html')
 
 WINDOW_WIDTH = 1100
 WINDOW_HEIGHT = 720
-MIN_WIDTH = 880
-MIN_HEIGHT = 560
+MIN_WIDTH = 700
+MIN_HEIGHT = 480
 
 
 class ShellError(RuntimeError):
@@ -64,6 +65,10 @@ def _register_drop_target(window) -> None:
 
 def run() -> int:
     import webview
+    from webview.platforms import winforms
+
+    if not winforms.is_chromium:
+        raise ShellError('需要 Microsoft Edge WebView2 Runtime。请从微软官网下载并安装 Evergreen Runtime，然后重新打开 SheetKit。')
 
     html = load_index()
     api = SheetKitApi()
@@ -94,7 +99,7 @@ def run() -> int:
     window.events.closing += on_closing
 
     # No http_server: the page is inlined, so nothing is served over the network.
-    webview.start(http_server=False)
+    webview.start(gui='edgechromium', http_server=False)
     return 0
 
 
@@ -103,4 +108,6 @@ def main(argv: list[str] | None = None) -> int:
         return run()
     except ShellError as exc:
         print(f'启动失败：{exc}', file=sys.stderr)
+        if sys.platform == 'win32':
+            ctypes.windll.user32.MessageBoxW(None, str(exc), 'SheetKit 启动失败', 0x10)
         return 2

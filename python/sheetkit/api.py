@@ -23,9 +23,11 @@ from .compare import CompareOptions, compare_files
 from .errors import SheetKitError, ValidationError
 from .exporter import write_workbook
 from .merge import MergeSource, merge_sources, plan_merge
-from .reader import profile_file, read_table
-from .reports import clean_report, compare_report, merge_report
+from .reader import profile_file, read_table, sample_header_rows
+from .recommend import clean_suggestions, header_suggestion, match_suggestion, merge_suggestions
+from .reports import CHANGE_HEADERS, change_rows, clean_report, compare_report, merge_report
 from .results import DEFAULT_PAGE, ResultStore, ResultTable, StoredResult
+from .templates import KINDS as TEMPLATE_KINDS, load_templates, save_template
 from . import validators
 
 logger = logging.getLogger('sheetkit.api')
@@ -72,6 +74,7 @@ class SheetKitApi:
         self._jobs: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
         self._table_cache_limit = 4
+        self._exports: OrderedDict[str, None] = OrderedDict()
 
     def _attach(self, window: Any) -> None:
         self._window = window
@@ -173,6 +176,26 @@ class SheetKitApi:
         }
 
     @_guard
+    def recommend(self, payload: dict) -> dict:
+        kind = payload.get('kind')
+
+        def table(source: dict):
+            return self._load_table(source.get('path'), source.get('sheet') or None,
+                                    int(source.get('header_row') or 1))
+
+        if kind == 'header':
+            suggestion = header_suggestion(sample_header_rows(payload.get('path'), payload.get('sheet') or None))
+        elif kind == 'match':
+            suggestion = match_suggestion(table(payload['old']), table(payload['new']),
+                                          whitespace=payload.get('ignore_whitespace', True),
+                                          case=payload.get('ignore_case', False))
+        elif kind == 'clean':
+            suggestion = clean_suggestions(table(payload))
+        else:
+            raise ValidationError('无法识别推荐类型')
+        return {'ok': True, 'suggestion': suggestion}
+
+    @_guard
     def preview(self, payload: dict) -> dict:
         """One page of a file, for the preview table."""
         path = payload.get('path')
@@ -222,7 +245,9 @@ class SheetKitApi:
         """Inspect the merge sources and return the target column layout."""
         sources = self._merge_sources(payload.get('sources'))
         plan = plan_merge(sources)
-        return {'ok': True, 'plan': plan.to_dict()}
+        info = plan.to_dict()
+        info['suggestions'] = merge_suggestions(info['sources'])
+        return {'ok': True, 'plan': info}
 
     # ---------------------------------------------------------------- analysis
 
@@ -279,6 +304,8 @@ class SheetKitApi:
             old_sheet=payload.get('old_sheet') or None,
             new_sheet=payload.get('new_sheet') or None,
             header_row=int(payload.get('header_row') or 1),
+            old_header_row=payload.get('old_header_row'),
+            new_header_row=payload.get('new_header_row'),
             options=options if isinstance(options, dict) else CompareOptions(),
             progress=progress,
             cancel=cancel,
@@ -292,23 +319,8 @@ class SheetKitApi:
             columns=[*result.old_columns, '旧版行号'],
             rows=[[*values, number] for _key, number, values in result.deleted],
         )
-        changed = ResultTable(
-            columns=['匹配字段', '修改列', '旧值', '新值', '旧版行号', '新版行号', '比较方式'],
-            rows=[
-                [
-                    record['key'],
-                    record['column'],
-                    record['old_value'],
-                    record['new_value'],
-                    record['old_row'],
-                    record['new_row'],
-                    '数值比较失败，按文本比较'
-                    if record['numeric_parse_failed']
-                    else ('十进制数值比较' if record['numeric'] else '文本比较'),
-                ]
-                for record in result.modification_records
-            ],
-        )
+        changed = ResultTable(columns=CHANGE_HEADERS, rows=change_rows(result.modification_records))
+        minor = ResultTable(columns=CHANGE_HEADERS, rows=change_rows(result.minor_records))
         union = list(result.old_columns) + [
             name for name in result.new_columns if name not in set(result.old_columns)
         ]
@@ -341,10 +353,18 @@ class SheetKitApi:
             columns=['来源', '异常类型', '匹配字段', '原始行号', *union], rows=anomaly_rows
         )
 
+        tables = {'added': added, 'deleted': deleted, 'changed': changed, 'anomaly': anomaly}
+        if result.minor:
+            tables['minor'] = minor
+        if result.unchanged_rows is not None:
+            tables['unchanged'] = ResultTable(
+                columns=[*result.new_columns, '旧版行号', '新版行号'],
+                rows=[[*row, old, new] for row, old, new in result.unchanged_rows],
+            )
         return StoredResult(
             kind='compare',
             summary=result.summary(),
-            tables={'added': added, 'deleted': deleted, 'changed': changed, 'anomaly': anomaly},
+            tables=tables,
             warnings=list(result.warnings),
             source_paths=[result.old_path, result.new_path],
             meta={'engine': result},
@@ -380,9 +400,9 @@ class SheetKitApi:
             kind='clean',
             summary=result.summary(),
             tables={
-                'cleaned': ResultTable(columns=columns, rows=result.rows),
-                'duplicates': ResultTable(columns=columns, rows=result.duplicate_rows),
-                'anomalies': ResultTable(columns=columns, rows=result.anomaly_rows),
+                'cleaned': ResultTable(columns=columns, rows=result.rows, row_status=result.row_status),
+                'duplicates': ResultTable(columns=columns, rows=result.duplicate_rows, row_status=result.row_status),
+                'anomalies': ResultTable(columns=columns, rows=result.anomaly_rows, row_status=result.row_status),
             },
             warnings=list(result.warnings),
             source_paths=[result.path],
@@ -444,6 +464,17 @@ class SheetKitApi:
     # ------------------------------------------------------------------ export
 
     @_guard
+    def templates(self, payload: dict) -> dict:
+        kind = payload.get('kind')
+        if kind not in TEMPLATE_KINDS:
+            raise ValidationError('无法识别模板类型')
+        with self._lock:
+            if 'name' in payload:
+                save_template(kind, payload['name'], payload.get('rule'))
+            items = load_templates()[kind]
+        return {'ok': True, 'templates': items}
+
+    @_guard
     def export(self, payload: dict) -> dict:
         """Write a result to a new .xlsx file."""
         kind = str(payload.get('kind') or '')
@@ -459,13 +490,15 @@ class SheetKitApi:
                 'error': {'code': 'E_RESULT_EXPIRED', 'message': '结果已过期，请重新执行'},
             }
 
+        if stored.kind != kind:
+            raise ValidationError('导出类型与当前结果不一致，请重新选择要导出的结果')
         engine = stored.meta.get('engine')
         if kind == 'compare':
             spec = compare_report(engine)
         elif kind == 'merge':
             spec = merge_report(engine)
         else:
-            spec = clean_report(engine)
+            spec = clean_report(engine, payload.get('output_columns'))
 
         destination = payload.get('destination')
         job_id = str(payload.get('job_id') or '')
@@ -481,7 +514,25 @@ class SheetKitApi:
         finally:
             if job_id:
                 self._release_job(job_id)
+        with self._lock:
+            self._exports[written] = None
+            self._exports.move_to_end(written)
+            while len(self._exports) > 32:
+                self._exports.popitem(last=False)
         return {'ok': True, 'path': written}
+
+    @_guard
+    def open_export(self, payload: dict) -> dict:
+        path = str(payload.get('path') or '')
+        with self._lock:
+            exported = path in self._exports
+        if not exported or not os.path.isfile(path):
+            raise ValidationError('找不到本次导出的文件，请检查是否已移动或删除')
+        try:
+            os.startfile(os.path.dirname(path) if payload.get('folder') else path)
+        except OSError as exc:
+            raise ValidationError('无法打开结果，请在资源管理器中打开该位置') from exc
+        return {'ok': True}
 
     @_guard
     def release(self, payload: dict) -> dict:
@@ -515,6 +566,7 @@ class SheetKitApi:
         self._store.clear()
         with self._lock:
             self._tables.clear()
+            self._exports.clear()
             for event in self._jobs.values():
                 event.set()
             self._jobs.clear()

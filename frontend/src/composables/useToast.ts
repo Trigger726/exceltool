@@ -20,6 +20,7 @@ function push(kind: ToastKind, text: string, timeout = 6000) {
   counter += 1
   const id = counter
   state.items.push({ id, kind, text })
+  if (state.items.length > 2) state.items.shift()
   if (timeout > 0) window.setTimeout(() => dismiss(id), timeout)
   return id
 }

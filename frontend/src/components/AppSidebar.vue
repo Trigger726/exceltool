@@ -27,7 +27,7 @@ const activePath = computed(() => route.path)
 
 <template>
   <aside
-    class="flex h-full w-[212px] shrink-0 flex-col border-r border-line bg-surface"
+    class="flex h-full app-sidebar w-[176px] shrink-0 flex-col border-r border-line bg-surface"
   >
     <div class="flex items-center gap-2.5 px-4 pb-4 pt-5">
       <div
@@ -35,7 +35,7 @@ const activePath = computed(() => route.path)
       >
         S
       </div>
-      <div class="leading-tight">
+      <div class="sidebar-label leading-tight">
         <div class="text-sm font-semibold tracking-tight">SheetKit</div>
         <div class="text-2xs text-ink-faint">表格效率助手</div>
       </div>
@@ -46,6 +46,8 @@ const activePath = computed(() => route.path)
         v-for="item in items"
         :key="item.to"
         :to="item.to"
+        :title="item.label"
+        :aria-label="item.label"
         class="flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm font-medium transition-colors"
         :class="
           activePath === item.to
@@ -54,7 +56,7 @@ const activePath = computed(() => route.path)
         "
       >
         <component :is="item.icon" :size="16" :stroke-width="1.9" />
-        <span>{{ item.label }}</span>
+        <span class="sidebar-label">{{ item.label }}</span>
       </RouterLink>
     </nav>
 
@@ -62,11 +64,13 @@ const activePath = computed(() => route.path)
       <button
         type="button"
         class="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-sm text-ink-muted transition-colors hover:bg-line-soft hover:text-ink"
+        :title="theme === 'dark' ? '浅色主题' : '深色主题'"
+        :aria-label="theme === 'dark' ? '浅色主题' : '深色主题'"
         @click="toggle"
       >
         <Sun v-if="theme === 'dark'" :size="16" :stroke-width="1.9" />
         <Moon v-else :size="16" :stroke-width="1.9" />
-        <span>{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
+        <span class="sidebar-label">{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
       </button>
     </div>
   </aside>

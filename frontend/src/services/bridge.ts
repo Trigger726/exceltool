@@ -94,6 +94,21 @@ export interface FileProfile {
   warnings: string[]
 }
 
+export interface HeaderSuggestion { row: number | null; reason: string }
+export interface MatchSuggestion { keys: string[]; reason: string }
+export interface CleanSuggestion {
+  strip_columns: string[]
+  duplicate_key_columns: string[]
+  date_columns: string[]
+  number_columns: string[]
+}
+
+async function recommend<T>(kind: string, payload: Record<string, unknown>) {
+  return (await call<{ suggestion: T }>('recommend', { kind, ...payload })).suggestion
+}
+
+export type TemplateRule = Record<string, string> | string[]
+
 export interface TablePage {
   columns: string[]
   rows: string[][]
@@ -103,6 +118,7 @@ export interface TablePage {
   unfiltered_total?: number
   filter?: string
   row_numbers: number[]
+  row_status?: ('' | 'anomaly' | 'duplicate')[]
   sheet: string | null
   header_row: number
   blank_rows: number
@@ -125,6 +141,7 @@ export interface MergeSourcePayload {
 }
 
 export interface MergePlan {
+  suggestions: { source_index: number; column: string; target: string }[]
   sources: {
     path: string
     name: string
@@ -157,6 +174,9 @@ export const api = {
     call<{ paths: string[] }>('choose_files', { kind, ...extra }),
   listFolder: (path: string) => call<{ paths: string[] }>('list_folder', { path }),
   describe: (path: string) => call<{ file: FileProfile }>('describe', { path }),
+  recommendHeader: (payload: Record<string, unknown>) => recommend<HeaderSuggestion>('header', payload),
+  recommendMatch: (payload: Record<string, unknown>) => recommend<MatchSuggestion>('match', payload),
+  recommendClean: (payload: Record<string, unknown>) => recommend<CleanSuggestion>('clean', payload),
   preview: (payload: Record<string, unknown>) => call<{ table: TablePage }>('preview', payload),
   plan: (sources: MergeSourcePayload[]) => call<{ plan: MergePlan }>('plan', { sources }),
   analyze: (payload: Record<string, unknown>) => call<AnalyzeResponse>('analyze', payload),
@@ -164,6 +184,9 @@ export const api = {
   cancel: (jobId: string) => call<{ cancelled: boolean }>('cancel', { job_id: jobId }),
   impact: (payload: Record<string, unknown>) =>
     call<{ impact: Record<string, any> }>('impact', payload),
+  templates: (kind: 'merge' | 'clean', entry?: { name: string; rule: TemplateRule }) =>
+    call<{ templates: Record<string, TemplateRule> }>('templates', { kind, ...entry }),
+  openExport: (path: string, folder: boolean) => call('open_export', { path, folder }),
   export: (payload: Record<string, unknown>) => call<{ path: string }>('export', payload),
   release: (resultId: string) => call<Record<string, never>>('release', { result_id: resultId }),
 }

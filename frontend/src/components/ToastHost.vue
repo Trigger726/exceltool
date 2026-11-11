@@ -19,13 +19,14 @@ const iconClass = {
 </script>
 
 <template>
-  <div class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[360px] flex-col gap-2">
+  <div class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[360px] max-w-[calc(100%-2rem)] flex-col gap-2">
     <TransitionGroup name="fade">
       <div
         v-for="item in items"
         :key="item.id"
         class="pointer-events-auto flex items-start gap-2 rounded-card border px-3 py-2.5 shadow-pop"
         :class="toneClass[item.kind]"
+        :role="item.kind === 'error' ? 'alert' : 'status'"
       >
         <Info v-if="item.kind === 'info'" :size="15" class="mt-[2px] shrink-0" :class="iconClass.info" />
         <CheckCircle2
@@ -39,6 +40,7 @@ const iconClass = {
         <button
           type="button"
           class="shrink-0 rounded p-0.5 text-ink-faint transition-colors hover:text-ink"
+          aria-label="关闭提示"
           @click="dismiss(item.id)"
         >
           <X :size="13" />

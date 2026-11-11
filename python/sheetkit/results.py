@@ -11,7 +11,7 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .values import display_text
 
@@ -26,6 +26,7 @@ class ResultTable:
 
     columns: list[str]
     rows: list[list[Any]]
+    row_status: Callable[[list[Any]], str] | None = None
 
     def page(
         self, offset: int = 0, limit: int = DEFAULT_PAGE, filter_text: str = ''
@@ -45,6 +46,7 @@ class ResultTable:
         return {
             'columns': list(self.columns),
             'rows': [[display_text(cell) for cell in row] for row in window],
+            **({'row_status': [self.row_status(row) for row in window]} if self.row_status else {}),
             'offset': offset,
             'limit': limit,
             'total': len(rows),

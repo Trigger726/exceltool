@@ -17,9 +17,9 @@ html.light {
   --c-line-soft: 240 243 247;
   --c-ink: 31 39 46;
   --c-ink-muted: 108 118 128;
-  --c-ink-faint: 149 158 168;
-  --c-primary: 36 144 239;
-  --c-primary-hover: 21 118 208;
+  --c-ink-faint: 103 115 130;
+  --c-primary: 32 95 166;
+  --c-primary-hover: 25 77 139;
   --c-primary-soft: 240 247 255;
   --c-success: 28 138 76;
   --c-success-soft: 235 249 240;
@@ -182,3 +182,64 @@ body {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* Shared desktop workflow layout. */
+.workflow-header { padding: 20px clamp(12px, 3vw, 30px) 0; }
+.workspace { padding: 16px clamp(12px, 3vw, 30px) 24px; }
+.workflow-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+.stat-grid { grid-template-columns: repeat(auto-fit, minmax(106px, 1fr)); }
+.workflow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+.workflow-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  color: rgb(var(--c-ink-muted));
+}
+.workflow-steps li span {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  background: rgb(var(--c-line-soft));
+}
+.workflow-steps li[aria-current] { color: rgb(var(--c-primary)); border-color: currentColor; font-weight: 650; }
+.workflow-steps li[aria-current] span { background: rgb(var(--c-primary-soft)); }
+.workflow-steps li.completed span { color: rgb(var(--c-success)); background: rgb(var(--c-success-soft)); }
+.recommendation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-left: 3px solid rgb(var(--c-primary));
+  border-radius: 4px;
+  background: rgb(var(--c-primary-soft));
+  font-size: 13px;
+}
+.recommendation p { flex: 1 1 220px; overflow-wrap: anywhere; }
+.advanced { padding: 8px 12px; border: 1px solid rgb(var(--c-line)); border-radius: 6px; }
+.advanced summary { cursor: pointer; font-weight: 600; color: rgb(var(--c-ink-muted)); }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid rgb(var(--c-primary)); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .app-sidebar { width: 58px; }
+  .sidebar-label { display: none; }
+  .app-sidebar > div:first-child { padding-inline: 12px; }
+  .app-sidebar nav a, .app-sidebar button { justify-content: center; padding-inline: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.confirm-dialog { margin: auto; width: min(calc(100% - 32px), 440px); }
+.confirm-dialog::backdrop { background: rgb(15 23 42 / 40%); }
+
+html.dark .btn-primary { color: rgb(16 27 44); }

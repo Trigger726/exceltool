@@ -19,10 +19,13 @@ import csv
 import datetime as dt
 import os
 import re
+import threading
 import zipfile
 from dataclasses import dataclass, field
+from itertools import islice
 from typing import Any, Iterator
 
+from .cancel import raise_if_cancelled
 from .errors import CorruptFileError, SheetNotFoundError, ValidationError
 from .values import dedupe_names, normalize_header, row_is_blank
 from . import validators
@@ -153,6 +156,27 @@ def _hidden_sheet_names(path: str) -> list[str]:
         workbook.close()
 
 
+def sample_header_rows(path: Any, sheet: str | None) -> list[tuple]:
+    """Inspect at most 16 physical rows without scanning for formulas."""
+    resolved, kind = validators.open_input(path, label='文件')
+    try:
+        if kind == 'csv':
+            encoding, delimiter = _detect_csv_format(resolved)
+            with open(resolved, encoding=encoding, errors='replace', newline='') as handle:
+                return [tuple(row) for row in islice(csv.reader(handle, delimiter=delimiter), 16)]
+
+        from openpyxl import load_workbook
+
+        book = load_workbook(resolved, read_only=True, data_only=True)
+        try:
+            name = _resolve_sheet(book.sheetnames, sheet, label='文件')
+            return list(book[name].iter_rows(max_row=16, max_col=min(book[name].max_column or 256, 256), values_only=True))
+        finally:
+            book.close()
+    except (OSError, csv.Error, ValueError, KeyError, zipfile.BadZipFile) as exc:
+        raise CorruptFileError('无法读取文件开头，请确认文件可在 Excel 或 WPS 中打开') from exc
+
+
 def read_table(
     path: Any,
     *,
@@ -161,6 +185,7 @@ def read_table(
     limit: int | None = None,
     keep_blank_rows: bool = False,
     label: str = '文件',
+    cancel: threading.Event | None = None,
 ) -> TableData:
     """Read a table with the header on `header_row` (1-based).
 
@@ -170,6 +195,7 @@ def read_table(
     records; the cleaning feature passes `keep_blank_rows=True` so that its
     "删除空白行" rule is a real choice rather than something already done.
     """
+    raise_if_cancelled(cancel, '读取文件')
     resolved, kind = validators.open_input(path, label=label)
     header_row = validators.require_int(
         header_row, '表头行', minimum=1, maximum=10000, default=1
@@ -182,6 +208,7 @@ def read_table(
             limit=limit,
             keep_blank_rows=keep_blank_rows,
             label=label,
+            cancel=cancel,
         )
     else:
         table = _read_xlsx(
@@ -192,6 +219,7 @@ def read_table(
             limit=limit,
             keep_blank_rows=keep_blank_rows,
             label=label,
+            cancel=cancel,
         )
 
     if validators.is_likely_open_elsewhere(resolved):
@@ -263,6 +291,7 @@ def _read_xlsx(
     limit: int | None,
     keep_blank_rows: bool,
     label: str,
+    cancel: threading.Event | None,
 ) -> TableData:
     from openpyxl import load_workbook
 
@@ -304,6 +333,7 @@ def _read_xlsx(
             limit=limit,
             keep_blank_rows=keep_blank_rows,
             warnings=warnings,
+            cancel=cancel,
         )
         if kind == 'xlsm' or getattr(value_book, 'vba_archive', None) is not None:
             table.warnings.append('该文件包含宏（VBA）。SheetKit 只读取数据，不会执行任何宏')
@@ -326,6 +356,7 @@ def _consume_rows(
     limit: int | None,
     keep_blank_rows: bool,
     warnings: list[str],
+    cancel: threading.Event | None,
 ) -> TableData:
     header_raw: tuple | None = None
     rows: list[list[Any]] = []
@@ -337,6 +368,8 @@ def _consume_rows(
     width = 0
 
     for index, raw in enumerate(value_rows, start=1):
+        if cancel is not None and index % 256 == 0:
+            raise_if_cancelled(cancel, '读取工作表')
         raw_formula = next(formula_rows, None) if formula_rows is not None else None
         if index < header_row:
             continue
@@ -491,7 +524,8 @@ def _guess_csv_encoding(sample: bytes) -> str:
 
 
 def _read_csv(
-    path: str, *, header_row: int, limit: int | None, keep_blank_rows: bool, label: str
+    path: str, *, header_row: int, limit: int | None, keep_blank_rows: bool, label: str,
+    cancel: threading.Event | None,
 ) -> TableData:
     encoding, delimiter = _detect_csv_format(path)
     warnings: list[str] = []
@@ -512,6 +546,8 @@ def _read_csv(
         with open(path, 'r', encoding=encoding, errors='replace', newline='') as handle:
             reader = csv.reader(handle, delimiter=delimiter, quotechar='"')
             for index, raw in enumerate(reader, start=1):
+                if cancel is not None and index % 256 == 0:
+                    raise_if_cancelled(cancel, '读取 CSV')
                 if index < header_row:
                     continue
                 if index == header_row:

@@ -295,6 +295,8 @@ def _write_sheet(
     widths = sheet.widths or auto_widths(sheet.headers, rows)
     for index, width in enumerate(widths, start=1):
         worksheet.column_dimensions[get_column_letter(index)].width = float(width)
+    if sheet.headers and rows:
+        worksheet.auto_filter.ref = f'A1:{get_column_letter(len(sheet.headers))}{len(rows) + 1}'
     if sheet.freeze_header and sheet.headers:
         worksheet.freeze_panes = 'A2'
 

@@ -27,10 +27,6 @@ const hasPrev = computed(() => offset.value > 0)
 const hasNext = computed(() => offset.value + limit.value < total.value)
 
 const rowNumbers = computed(() => props.table?.row_numbers ?? [])
-
-function columnClass(index: number) {
-  return index === 0 ? 'text-left' : 'text-left'
-}
 </script>
 
 <template>
@@ -81,7 +77,6 @@ function columnClass(index: number) {
               v-for="(column, index) in columns"
               :key="`${column}-${index}`"
               class="whitespace-nowrap border-b border-line px-3 py-2 text-left text-2xs font-semibold uppercase tracking-wide text-ink-muted"
-              :class="columnClass(index)"
             >
               {{ column }}
             </th>
@@ -91,7 +86,9 @@ function columnClass(index: number) {
           <tr
             v-for="(row, rowIndex) in rows"
             :key="rowIndex"
-            class="border-b border-line-soft last:border-0 hover:bg-line-soft/50"
+            class="border-b border-line-soft last:border-0"
+            :class="table?.row_status?.[rowIndex] === 'anomaly' ? 'bg-danger-soft'
+              : table?.row_status?.[rowIndex] === 'duplicate' ? 'bg-warning-soft' : 'hover:bg-line-soft/50'"
           >
             <td
               v-if="rowNumberHeader"
@@ -102,7 +99,7 @@ function columnClass(index: number) {
             <td
               v-for="(cell, cellIndex) in row"
               :key="cellIndex"
-              class="selectable max-w-[320px] truncate px-3 py-1.5 align-top"
+              class="selectable max-w-[320px] truncate whitespace-pre px-3 py-1.5 align-top"
               :class="cellIndex === 0 ? 'font-medium' : 'text-ink-muted'"
               :title="cell"
             >

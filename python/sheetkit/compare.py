@@ -37,6 +37,7 @@ class CompareOptions:
     numeric_columns: tuple[str, ...] = ()
     numeric_tolerance: Decimal = Decimal('0')
     compare_columns: tuple[str, ...] = ()
+    include_unchanged: bool = False
 
     @classmethod
     def from_payload(cls, payload: Any, available: Sequence[str]) -> 'CompareOptions':
@@ -68,6 +69,7 @@ class CompareOptions:
             numeric_columns=tuple(numeric),
             numeric_tolerance=tolerance,
             compare_columns=tuple(compare_cols),
+            include_unchanged=validators.require_bool(payload.get('include_unchanged'), '保留未变化记录', default=False),
         )
 
 
@@ -97,6 +99,7 @@ class FieldChange:
     new_value: Any
     numeric: bool = False
     numeric_parse_failed: bool = False
+    accepted_difference: str | None = None
 
 
 @dataclass
@@ -133,6 +136,9 @@ class CompareResult:
     unchanged_count: int = 0
     warnings: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
+    minor: list[ChangedRow] = field(default_factory=list)
+    strict_modified_rows: int = 0
+    unchanged_rows: list[tuple[list[Any], int, int]] | None = None
 
     @property
     def changed_field_count(self) -> int:
@@ -141,8 +147,16 @@ class CompareResult:
     @property
     def modification_records(self) -> list[dict]:
         """Flat 匹配字段 / 修改列 / 旧值 / 新值 / 原始行号 rows for UI and export."""
+        return self._records(self.changed)
+
+    @property
+    def minor_records(self) -> list[dict]:
+        return self._records(self.minor)
+
+    @staticmethod
+    def _records(rows: list[ChangedRow]) -> list[dict]:
         records: list[dict] = []
-        for row in self.changed:
+        for row in rows:
             for change in row.changes:
                 records.append(
                     {
@@ -154,6 +168,7 @@ class CompareResult:
                         'new_row': row.new_row,
                         'numeric': change.numeric,
                         'numeric_parse_failed': change.numeric_parse_failed,
+                        **({'accepted_difference': change.accepted_difference} if change.accepted_difference else {}),
                     }
                 )
         return records
@@ -172,6 +187,9 @@ class CompareResult:
             'deleted': len(self.deleted),
             'modified_rows': len(self.changed),
             'modified_fields': self.changed_field_count,
+            'minor_rows': len(self.minor),
+            'minor_fields': sum(len(row.changes) for row in self.minor),
+            'strict_modified_rows': self.strict_modified_rows,
             'unchanged': self.unchanged_count,
             'anomalies': len(self.anomalies),
             'unmatched': len(self.unmatched),
@@ -252,15 +270,20 @@ def _index_by_key(
 def _values_differ(
     old_value: Any, new_value: Any, column: str, options: CompareOptions
 ) -> FieldChange | None:
-    if is_blank(old_value) and is_blank(new_value):
+    if old_value is new_value or (type(old_value) is type(new_value) and old_value == new_value):
         return None
+    if is_blank(old_value) and is_blank(new_value):
+        return _text_difference(old_value, new_value, column, options)
 
     if column in options.numeric_columns:
         left = to_decimal(old_value)
         right = to_decimal(new_value)
         if left is not None and right is not None:
             if abs(left - right) <= options.numeric_tolerance:
-                return None
+                if display_text(old_value) == display_text(new_value):
+                    return None
+                reason = '数值相同，表达不同' if left == right else '数值在设定容差内'
+                return FieldChange(column, old_value, new_value, numeric=True, accepted_difference=reason)
             return FieldChange(column, old_value, new_value, numeric=True)
         # One side is not a number: fall back to text so the difference is still
         # reported, and flag that numeric comparison was not possible.
@@ -268,7 +291,7 @@ def _values_differ(
                     ignore_case=options.ignore_case) == key_text(
                         new_value, ignore_whitespace=options.ignore_whitespace,
                         ignore_case=options.ignore_case):
-            return None
+            return _text_difference(old_value, new_value, column, options)
         return FieldChange(column, old_value, new_value, numeric=False, numeric_parse_failed=True)
 
     left_text = key_text(
@@ -282,8 +305,23 @@ def _values_differ(
         ignore_case=options.ignore_case,
     )
     if left_text == right_text:
-        return None
+        return _text_difference(old_value, new_value, column, options)
     return FieldChange(column, old_value, new_value, numeric=False)
+
+
+def _text_difference(old_value: Any, new_value: Any, column: str, options: CompareOptions) -> FieldChange | None:
+    left, right = display_text(old_value), display_text(new_value)
+    if left == right:
+        return None
+    reasons = []
+    if options.ignore_whitespace and (left != left.strip() or right != right.strip()):
+        reasons.append('首尾空格')
+        left, right = left.strip(), right.strip()
+    if options.ignore_case and left != right and left.casefold() == right.casefold():
+        reasons.append('大小写')
+    if reasons and (left == right or options.ignore_case and left.casefold() == right.casefold()):
+        return FieldChange(column, old_value, new_value, accepted_difference=' / '.join(reasons))
+    return None
 
 
 def _shift(progress: ProgressFn | None, start: float, end: float) -> ProgressFn | None:
@@ -356,6 +394,9 @@ def compare_tables(
     deleted: list[tuple[str, int, list[Any]]] = []
     changed: list[ChangedRow] = []
     unchanged = 0
+    unchanged_rows = [] if options.include_unchanged else None
+    minor: list[ChangedRow] = []
+    strict_modified_rows = 0
 
     report('匹配记录', 0.4)
     old_keys = set(old_unique)
@@ -387,6 +428,10 @@ def compare_tables(
     common = old_keys & new_keys
     old_index_map = {name: i for i, name in enumerate(old_columns)}
     new_index_map = {name: i for i, name in enumerate(new_columns)}
+    selected = set(compare_columns)
+    columns_to_check = [(column, old_index_map[column], new_index_map[column], column in selected)
+                        for column in dict.fromkeys([*compare_columns, *keys])
+                        if column in old_index_map and column in new_index_map]
     total = len(common) or 1
 
     for step, key_display in enumerate(sorted(common), start=1):
@@ -399,19 +444,20 @@ def compare_tables(
         new_row = new_table.rows[new_position]
 
         changes: list[FieldChange] = []
-        for column in compare_columns:
-            old_i = old_index_map.get(column)
-            new_i = new_index_map.get(column)
-            if old_i is None or new_i is None:
-                continue
-            change = _values_differ(
-                old_row[old_i] if old_i < len(old_row) else None,
-                new_row[new_i] if new_i < len(new_row) else None,
-                column,
-                options,
-            )
-            if change:
-                changes.append(change)
+        minor_changes: list[FieldChange] = []
+        for column, old_i, new_i, compare_content in columns_to_check:
+            old_value = old_row[old_i] if old_i < len(old_row) else None
+            new_value = new_row[new_i] if new_i < len(new_row) else None
+            change = (_values_differ(old_value, new_value, column, options) if compare_content
+                      else _text_difference(old_value, new_value, column, options))
+            if change is not None:
+                (minor_changes if change.accepted_difference else changes).append(change)
+
+        if minor_changes:
+            minor.append(ChangedRow(key_display, old_table.row_numbers[old_position],
+                                    new_table.row_numbers[new_position], minor_changes))
+        if changes or minor_changes:
+            strict_modified_rows += 1
 
         if changes:
             changed.append(
@@ -424,6 +470,8 @@ def compare_tables(
             )
         else:
             unchanged += 1
+            if unchanged_rows is not None:
+                unchanged_rows.append((new_row, old_table.row_numbers[old_position], new_table.row_numbers[new_position]))
 
     if old_anomalies or new_anomalies:
         warnings.append(
@@ -459,6 +507,9 @@ def compare_tables(
         anomalies=old_anomalies + new_anomalies,
         unmatched=unmatched,
         unchanged_count=unchanged,
+        minor=minor,
+        strict_modified_rows=strict_modified_rows,
+        unchanged_rows=unchanged_rows,
         warnings=list(dict.fromkeys(warnings)),
         timings={'total': round(time.perf_counter() - started, 3)},
     )
@@ -473,6 +524,8 @@ def compare_files(
     old_sheet: str | None = None,
     new_sheet: str | None = None,
     header_row: int = 1,
+    old_header_row: int | None = None,
+    new_header_row: int | None = None,
     options: CompareOptions | dict | None = None,
     progress: ProgressFn | None = None,
     cancel: threading.Event | None = None,
@@ -480,10 +533,16 @@ def compare_files(
     """Read both files and compare them. `options` may be a raw UI payload."""
     if progress:
         progress('读取旧版文件', 0.0)
-    old_table = read_table(old_path, sheet=old_sheet, header_row=header_row, label='旧版文件')
+    old_table = read_table(
+        old_path, sheet=old_sheet, header_row=old_header_row if old_header_row is not None else header_row,
+        label='旧版文件', cancel=cancel,
+    )
     if progress:
         progress('读取新版文件', 0.1)
-    new_table = read_table(new_path, sheet=new_sheet, header_row=header_row, label='新版文件')
+    new_table = read_table(
+        new_path, sheet=new_sheet, header_row=new_header_row if new_header_row is not None else header_row,
+        label='新版文件', cancel=cancel,
+    )
 
     if isinstance(options, dict):
         parsed = CompareOptions.from_payload(options, old_table.columns)

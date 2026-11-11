@@ -114,7 +114,7 @@ def to_decimal(value: Any) -> Decimal | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, Decimal):
-        return value
+        return value if value.is_finite() else None
     if isinstance(value, int):
         return Decimal(value)
     if isinstance(value, float):
@@ -144,6 +144,8 @@ def to_decimal(value: Any) -> Decimal | None:
     try:
         result = Decimal(text)
     except (InvalidOperation, ValueError):
+        return None
+    if not result.is_finite():
         return None
     return -result if negative else result
 

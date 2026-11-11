@@ -24,7 +24,7 @@ const hovering = ref(false)
 let unregister: (() => void) | null = null
 
 onMounted(() => {
-  unregister = registerDropTarget(props.id, (paths) => emit('dropped', paths))
+  unregister = registerDropTarget(props.id, (paths) => { if (!props.busy) emit('dropped', paths) })
 })
 
 onBeforeUnmount(() => {
@@ -36,24 +36,25 @@ const fileLabel = computed(() => props.fileName || props.path || '')
 
 <template>
   <div
-    class="card p-3 transition-colors"
+    class="file-picker rounded-card border border-line bg-surface p-3 transition-colors"
     :class="hovering ? 'border-primary bg-primary-soft/40' : ''"
     @mouseenter="setActiveDropTarget(id)"
     @mouseleave="setActiveDropTarget(null)"
-    @dragenter.prevent="hovering = true"
-    @dragover.prevent="hovering = true"
+    @dragenter.prevent="setActiveDropTarget(id); hovering = true"
+    @dragover.prevent="setActiveDropTarget(id); hovering = true"
     @dragleave.prevent="hovering = false"
     @drop.prevent="hovering = false"
   >
     <div class="mb-2 flex items-center justify-between">
-      <span class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+      <span class="text-xs font-semibold text-ink-muted">
         {{ title }}
       </span>
       <button
         v-if="path"
         type="button"
         class="rounded p-1 text-ink-faint transition-colors hover:bg-danger-soft hover:text-danger"
-        title="清除"
+        title="清除文件"
+        :disabled="busy"
         @click="emit('clear')"
       >
         <Trash2 :size="14" />
@@ -80,7 +81,7 @@ const fileLabel = computed(() => props.fileName || props.path || '')
           {{ path }}
         </div>
       </div>
-      <button type="button" class="btn btn-ghost !px-2 !py-1" @click="emit('browse')">更换</button>
+      <button type="button" class="btn btn-ghost !px-2 !py-1" :disabled="busy" @click="emit('browse')">更换</button>
     </div>
   </div>
 </template>

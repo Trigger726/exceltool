@@ -10,3 +10,7 @@ tools/_bench/
 tools/_probe*.xlsx
 .pytest_cache/
 tools/_*.png
+.coverage
+.idea/
+.fc_b_tmp/
+.pytest-tmp*/
