@@ -1,0 +1,18 @@
+# SheetKit runtime dependencies.
+#
+# Note on pandas: the brief lists pandas as part of the Excel stack, but it is
+# deliberately NOT a dependency here. pandas infers dtypes on load, which would
+# turn the text "00123" into the number 123 and turn a 19-digit order number
+# into a float - exactly the type changes the brief forbids ("不得在用户未确认
+# 时擅自转换业务字段的数据类型"). openpyxl gives the engine the original cell
+# types, so the reader keeps business columns exactly as the file stores them.
+#
+# If pandas is wanted later for an export path that needs tabular reshaping,
+# add it back here; do not let it near the reader.
+
+openpyxl>=3.1,<4
+pywebview>=6.2,<7
+
+# WebView2 host for Windows. pywebview pulls it in automatically on Windows,
+# but it is listed explicitly so the requirement is visible.
+pythonnet>=3.2,<4; sys_platform == "win32"

@@ -1,0 +1,12 @@
+.venv/
+.pytest-tmp/
+node_modules/
+python/sheetkit/webui/
+build/
+dist/
+__pycache__/
+*.pyc
+tools/_bench/
+tools/_probe*.xlsx
+.pytest_cache/
+tools/_*.png
