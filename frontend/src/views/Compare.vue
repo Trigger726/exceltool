@@ -18,7 +18,6 @@ import {
   newJobId,
   SheetKitError,
   type AnalyzeResponse,
-  type MatchSuggestion,
   type TablePage,
 } from '@/services/bridge'
 
@@ -30,8 +29,6 @@ const newFile = useFileSlot()
 
 const previewSide = ref<'old' | 'new'>('old')
 const keys = ref<string[]>([])
-const suggestion = ref<MatchSuggestion | null>(null)
-const suggesting = ref(false)
 const ignoreWhitespace = ref(true)
 const ignoreCase = ref(false)
 const includeUnchanged = ref(false)
@@ -80,26 +77,6 @@ watch(sharedColumns, (columns) => {
   keys.value = keys.value.filter((key) => columns.includes(key))
   numericColumns.value = numericColumns.value.filter((column) => columns.includes(column))
   compareColumns.value = compareColumns.value.filter((column) => columns.includes(column))
-})
-
-watch([sharedColumns, ignoreWhitespace, ignoreCase], async (_next, _previous, onCleanup) => {
-  let stale = false
-  onCleanup(() => { stale = true })
-  suggestion.value = null
-  suggesting.value = false
-  if (!oldFile.table.value || !newFile.table.value || !sharedColumns.value.length) return
-  suggesting.value = true
-  try {
-    const response = await api.recommendMatch({
-      old: oldFile.source(), new: newFile.source(),
-      ignore_whitespace: ignoreWhitespace.value, ignore_case: ignoreCase.value,
-    })
-    if (!stale) suggestion.value = response
-  } catch (error) {
-    if (!stale) toast.error(messageOf(error))
-  } finally {
-    if (!stale) suggesting.value = false
-  }
 })
 
 function toggle(list: string[], value: string) {
@@ -338,7 +315,7 @@ onBeforeUnmount(() => {
 
     <div class="workspace flex-1 space-y-4 overflow-auto">
       <!-- 1. 文件选择 -->
-      <section class="card p-4">
+      <section class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">1 · 选择要对比的两个文件</h2>
         <div class="workflow-grid grid gap-3">
           <FilePicker
@@ -365,7 +342,7 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div class="workflow-grid mt-3 grid gap-3">
+        <div v-if="oldFile.path.value || newFile.path.value" class="workflow-grid mt-3 grid gap-3">
           <FileSettings v-if="oldFile.path.value" :file="oldFile" :disabled="!!currentJob"
             @reload="(detect) => reload('old', detect)" />
           <FileSettings v-if="newFile.path.value" :file="newFile" :disabled="!!currentJob"
@@ -374,41 +351,38 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 2. 参数配置 -->
-      <section v-if="oldFile.path.value && newFile.path.value" class="card p-4">
-        <h2 class="mb-3 text-sm font-semibold">2 · 匹配字段与比较选项</h2>
+      <section v-if="oldFile.path.value && newFile.path.value" class="card workflow-panel">
+        <h2 class="mb-3 text-sm font-semibold">2 · 配置对比</h2>
 
         <div class="space-y-4">
-          <div>
-            <div class="field-label">
-              用于匹配记录的字段<span class="ml-1 font-normal text-ink-faint">可选多列组合匹配</span>
-            </div>
-            <div v-if="suggesting || suggestion" class="recommendation mb-2">
-              <p>{{ suggesting ? '正在检查匹配字段…' : suggestion?.reason }}</p>
-              <button v-if="suggestion?.keys.length" type="button" class="btn btn-default"
-                @click="keys = [...suggestion.keys]">使用 {{ suggestion.keys.join(' + ') }}</button>
-            </div>
+          <fieldset id="match-fields" class="min-w-0" :aria-describedby="sharedColumns.length ? 'match-fields-hint' : undefined">
+            <legend class="text-sm font-semibold">匹配字段</legend>
+            <p v-if="sharedColumns.length" id="match-fields-hint" class="mb-3 mt-1 text-xs text-ink-muted">
+              勾选用于识别同一条记录的列，可组合多列。
+            </p>
             <div
               v-if="sharedColumns.length"
-              class="max-h-36 space-y-1 overflow-auto rounded-control border border-line px-2.5 py-2"
+              class="match-field-grid"
             >
               <label
                 v-for="column in sharedColumns"
                 :key="column"
-                class="flex cursor-pointer items-center gap-2 text-sm"
+                class="match-field"
+                :class="keys.includes(column) ? 'border-primary/40 bg-primary-soft text-primary' : 'border-line bg-canvas hover:bg-line-soft'"
               >
                 <input
+                  v-model="keys"
                   type="checkbox"
-                  :checked="keys.includes(column)"
-                  class="accent-primary"
-                  @change="toggle(keys, column)"
+                  :value="column"
+                  class="shrink-0 accent-primary"
                 />
-                <span class="selectable truncate">{{ column }}</span>
+                <span class="selectable min-w-0 break-words">{{ column }}</span>
               </label>
             </div>
-            <p v-else class="rounded-control bg-line-soft/60 px-3 py-2 text-xs text-ink-muted">
+            <p v-else class="mt-2 text-xs text-ink-muted">
               没有同名字段。请检查工作表和表头，或先在 Excel 中统一列名。
             </p>
-          </div>
+          </fieldset>
 
           <details class="advanced">
             <summary>高级比较选项</summary>
@@ -478,7 +452,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 3. 数据预览 -->
-      <section v-if="oldFile.path.value || newFile.path.value" class="card p-4">
+      <section v-if="oldFile.path.value || newFile.path.value" class="card workflow-panel">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-semibold">数据预览</h2>
           <div class="flex gap-1 rounded-control bg-line-soft p-0.5">
@@ -525,7 +499,7 @@ onBeforeUnmount(() => {
       <ExportFeedback v-if="exportedPath && !settingsChanged" :path="exportedPath" />
 
       <!-- 结果 -->
-      <section v-if="result" ref="resultsPanel" data-result class="card p-4">
+      <section v-if="result" ref="resultsPanel" data-result class="card workflow-panel">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-semibold">3 · 对比结果</h2>
           <span class="text-2xs text-ink-faint">耗时 {{ result.summary.timings?.total ?? 0 }} 秒</span>
@@ -610,3 +584,23 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.match-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));
+  gap: 8px;
+  max-height: 168px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.match-field {
+  @apply flex min-h-10 cursor-pointer items-center gap-2 rounded-control border px-3 py-2 text-sm transition-colors;
+}
+
+.match-field:has(input:focus-visible) {
+  outline: 2px solid rgb(var(--c-focus));
+  outline-offset: -2px;
+}
+</style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { FileSpreadsheet, FolderOpen, Trash2, Upload } from 'lucide-vue-next'
+import { FileSpreadsheet, FileUp, Trash2 } from 'lucide-vue-next'
 
 import { registerDropTarget, setActiveDropTarget } from '@/composables/useDropTarget'
 
@@ -36,8 +36,11 @@ const fileLabel = computed(() => props.fileName || props.path || '')
 
 <template>
   <div
-    class="file-picker rounded-card border border-line bg-surface p-3 transition-colors"
-    :class="hovering ? 'border-primary bg-primary-soft/40' : ''"
+    class="file-picker p-4 transition-colors"
+    :class="[
+      path ? 'rounded-card border border-line bg-canvas' : 'drop-surface',
+      hovering && '!border-primary !bg-primary-soft',
+    ]"
     @mouseenter="setActiveDropTarget(id)"
     @mouseleave="setActiveDropTarget(null)"
     @dragenter.prevent="setActiveDropTarget(id); hovering = true"
@@ -46,7 +49,7 @@ const fileLabel = computed(() => props.fileName || props.path || '')
     @drop.prevent="hovering = false"
   >
     <div class="mb-2 flex items-center justify-between">
-      <span class="text-xs font-semibold text-ink-muted">
+      <span class="file-picker-title font-semibold text-ink">
         {{ title }}
       </span>
       <button
@@ -63,12 +66,11 @@ const fileLabel = computed(() => props.fileName || props.path || '')
 
     <div
       v-if="!path"
-      class="flex flex-col items-center justify-center gap-2 rounded-control border border-dashed border-line px-4 py-6 text-center"
+      class="flex flex-col items-center justify-center gap-3 px-2 py-[clamp(12px,2vw,28px)] text-center"
     >
-      <Upload :size="18" class="text-ink-faint" />
-      <div class="text-sm text-ink-muted">{{ placeholder || '拖放文件到这里' }}</div>
-      <button type="button" class="btn btn-default" :disabled="busy" @click="emit('browse')">
-        <FolderOpen :size="14" />
+      <FileUp class="size-[clamp(30px,3.7vw,54px)] text-ink-muted" :stroke-width="1.5" aria-hidden="true" />
+      <div class="file-picker-hint text-ink-muted">{{ placeholder || '拖放文件到这里' }}</div>
+      <button type="button" class="btn btn-surface" :disabled="busy" @click="emit('browse')">
         选择文件
       </button>
     </div>

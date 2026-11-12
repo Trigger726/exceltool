@@ -51,6 +51,13 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
         wait(selector)
         js(f'{selector}.click()')
 
+    def check_match_field(name):
+        checkbox = f'[...document.querySelectorAll("#match-fields input")].find(input => input.value === {json.dumps(name)})'
+        wait(checkbox)
+        if not js(f'{checkbox}.checked'):
+            js(f'{checkbox}.click()')
+        wait(f'{checkbox}.checked')
+
     def input_value(selector, value):
         js(f"""(() => {{
             const input = document.querySelector({json.dumps(selector)});
@@ -119,9 +126,9 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
                      ['001', ' 甲 ', '日期错误', '未知'], ['001', '乙', '2026-01-01', 2]])
 
     wait('window.sheetkitDrop && window.pywebview?.api')
-    heading('SheetKit 表格效率助手')
+    heading('想怎么处理表格？')
     assert js("location.protocol") == 'about:'
-    assert js('document.querySelectorAll("main button").length') == 3
+    assert js('document.querySelectorAll("main nav a").length') == 3
     assert js('!document.querySelector("vite-error-overlay")')
     checks['home_about_blank'] = True
     capture('home')
@@ -132,7 +139,8 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
     wait('!document.documentElement.classList.contains("dark")')
     checks['theme'] = True
 
-    route('#/compare', '表格对比')
+    js('document.querySelector(\'main a[href="#/compare"]\').click()')
+    heading('表格对比')
     from System import Action
 
     window.resize(900, 600)
@@ -147,7 +155,9 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
     wait('document.body.innerText.includes("旧版.xlsx")')
     drop([new], '.file-picker:nth-child(2)')
     wait('document.body.innerText.includes("推荐第 2 行")')
-    click('使用 物料编码')
+    assert js('!document.querySelector("main .recommendation")')
+    assert js('[...document.querySelectorAll("main button")].find(b => b.textContent.trim() === "开始对比").disabled')
+    check_match_field('物料编码')
     click('开始对比')
     wait('document.body.innerText.includes("3 · 对比结果")')
     wait('document.body.innerText.includes("共 65 行")')
@@ -155,7 +165,7 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
     wait('[...document.querySelectorAll("[data-result] span")].some(s => s.textContent === "2 / 2")')
     input_value('input[type=search]', '00042')
     wait('document.body.innerText.includes("筛选后 1 / 65")')
-    checks['compare_recommendation_paging_filter'] = True
+    checks['compare_manual_match_paging_filter'] = True
     capture('compare')
     with_export = export('compare')
     try:
@@ -171,7 +181,7 @@ def exercise(window, directory: Path, screenshots: bool, checks: dict) -> None:
                      *[[f'{i:05}', '甲', i] for i in range(15_000)]])
     drop([large], '.file-picker:first-child')
     wait('document.body.innerText.includes("大表.xlsx")')
-    click('使用 物料编码')
+    check_match_field('物料编码')
     click('开始对比')
     wait('document.querySelector("[role=progressbar]")')
     click('取消')

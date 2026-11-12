@@ -1,60 +1,61 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { ChevronRight, Columns3, Combine, Sparkles } from 'lucide-vue-next'
-
-const router = useRouter()
+import { Brush, ChevronRight, LaptopMinimal, Layers, Scale, Table2 } from 'lucide-vue-next'
 
 const features = [
   {
     to: '/compare',
-    icon: Columns3,
+    icon: Scale,
     title: '表格对比',
-    description: '对比两个版本的 Excel，自动识别新增、删除和修改内容。',
-    accent: 'text-primary bg-primary-soft',
+    description: '查找两个版本之间新增、删除和修改的内容。',
   },
   {
     to: '/merge',
-    icon: Combine,
+    icon: Layers,
     title: '批量合并',
-    description: '将多个 Excel 文件快速汇总为一个文件。',
-    accent: 'text-success bg-success-soft',
+    description: '将多个表格纵向汇总为一个文件。',
   },
   {
     to: '/clean',
-    icon: Sparkles,
+    icon: Brush,
     title: '数据清洗',
-    description: '检测和处理重复、空值及格式问题。',
-    accent: 'text-warning bg-warning-soft',
+    description: '处理重复、空值与格式问题。',
   },
 ]
 </script>
 
 <template>
-  <div class="flex h-full flex-col overflow-auto">
-    <div class="workspace">
-      <div class="mb-7 mt-5">
-        <h1 class="text-2xl font-semibold tracking-tight">SheetKit 表格效率助手</h1>
-        <p class="mt-2 text-sm text-ink-muted">选择要完成的工作。支持 Excel 和 CSV，文件在本机处理。</p>
-      </div>
-      <div class="card max-w-3xl divide-y divide-line">
-        <button
+  <div class="home-view">
+    <div class="home-content">
+      <header class="home-intro">
+        <h1 class="home-title font-display">
+          <Table2 class="home-mark text-brand" :stroke-width="1.6" aria-hidden="true" />
+          <span>想怎么处理表格？</span>
+        </h1>
+        <p>选择一项工具，开始处理 Excel 或 CSV 文件。</p>
+      </header>
+
+      <nav class="home-tools" aria-label="表格工具">
+        <RouterLink
           v-for="feature in features"
           :key="feature.to"
-          type="button"
-          class="flex w-full items-center gap-4 px-4 py-4 text-left hover:bg-line-soft"
-          @click="router.push(feature.to)"
+          :to="feature.to"
+          class="home-tool"
         >
-          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-control" :class="feature.accent">
-            <component :is="feature.icon" :size="19" :stroke-width="1.8" />
+          <span class="home-tool-icon" aria-hidden="true">
+            <component :is="feature.icon" :stroke-width="1.6" />
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block font-semibold">{{ feature.title }}</span>
-            <span class="mt-1 block text-xs text-ink-muted">{{ feature.description }}</span>
+            <span class="home-tool-title font-display">{{ feature.title }}</span>
+            <span class="home-tool-description">{{ feature.description }}</span>
           </span>
-          <ChevronRight :size="17" class="shrink-0 text-ink-muted" aria-hidden="true" />
-        </button>
-      </div>
-      <p class="mt-4 text-xs text-ink-muted">结果另存为 Excel 文件，原始文件保持原样。</p>
+          <ChevronRight :size="18" :stroke-width="1.6" class="shrink-0 text-ink-muted" aria-hidden="true" />
+        </RouterLink>
+      </nav>
+
+      <p class="home-note">
+        <LaptopMinimal :size="17" :stroke-width="1.6" aria-hidden="true" />
+        文件在本机处理。
+      </p>
     </div>
   </div>
 </template>

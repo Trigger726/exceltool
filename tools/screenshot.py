@@ -101,7 +101,7 @@ def main() -> int:
             heading = window.evaluate_js(
                 "var h = document.querySelector('main h1'); h ? h.textContent.trim() : ''"
             )
-            if heading and heading != 'SheetKit 表格效率助手':
+            if heading and heading != '想怎么处理表格？':
                 break
         print(f'HEADING {heading or "(none)"}', flush=True)
 

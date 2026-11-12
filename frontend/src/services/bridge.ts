@@ -95,7 +95,6 @@ export interface FileProfile {
 }
 
 export interface HeaderSuggestion { row: number | null; reason: string }
-export interface MatchSuggestion { keys: string[]; reason: string }
 export interface CleanSuggestion {
   strip_columns: string[]
   duplicate_key_columns: string[]
@@ -175,7 +174,6 @@ export const api = {
   listFolder: (path: string) => call<{ paths: string[] }>('list_folder', { path }),
   describe: (path: string) => call<{ file: FileProfile }>('describe', { path }),
   recommendHeader: (payload: Record<string, unknown>) => recommend<HeaderSuggestion>('header', payload),
-  recommendMatch: (payload: Record<string, unknown>) => recommend<MatchSuggestion>('match', payload),
   recommendClean: (payload: Record<string, unknown>) => recommend<CleanSuggestion>('clean', payload),
   preview: (payload: Record<string, unknown>) => call<{ table: TablePage }>('preview', payload),
   plan: (sources: MergeSourcePayload[]) => call<{ plan: MergePlan }>('plan', { sources }),

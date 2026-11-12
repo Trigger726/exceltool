@@ -6,13 +6,13 @@ defineProps<{
 </script>
 
 <template>
-  <header class="workflow-header shrink-0 border-b border-line bg-surface">
-    <div class="flex flex-wrap items-start justify-between gap-3">
+  <header class="workflow-header shrink-0">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="text-lg font-semibold tracking-tight">{{ title }}</h1>
-        <p v-if="caption" class="mt-0.5 text-sm text-ink-muted">{{ caption }}</p>
+        <h1 class="workflow-heading font-display">{{ title }}</h1>
+        <p v-if="caption" class="workflow-caption mt-2 text-ink-muted">{{ caption }}</p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="workflow-actions flex flex-wrap items-center gap-2">
         <slot name="actions" />
       </div>
     </div>

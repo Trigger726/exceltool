@@ -1,7 +1,3 @@
-/** Frappe-inspired design tokens. Frappe UI itself is not used as a dependency:
- *  its published package pulls in socket.io-client, tiptap, the full CodeMirror
- *  set, echarts and vitepress, all of which assume a Frappe server. Only the
- *  visual language is reproduced here. */
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -17,9 +13,9 @@ export default {
         ink: 'rgb(var(--c-ink) / <alpha-value>)',
         'ink-muted': 'rgb(var(--c-ink-muted) / <alpha-value>)',
         'ink-faint': 'rgb(var(--c-ink-faint) / <alpha-value>)',
+        brand: 'rgb(var(--c-brand) / <alpha-value>)',
         primary: {
           DEFAULT: 'rgb(var(--c-primary) / <alpha-value>)',
-          hover: 'rgb(var(--c-primary-hover) / <alpha-value>)',
           soft: 'rgb(var(--c-primary-soft) / <alpha-value>)',
         },
         success: {
@@ -37,26 +33,25 @@ export default {
       },
       fontFamily: {
         sans: [
-          'Inter',
-          '-apple-system',
-          'Segoe UI',
-          'Microsoft YaHei',
+          'system-ui',
+          'Microsoft YaHei UI',
           'PingFang SC',
           'Hiragino Sans GB',
           'sans-serif',
         ],
+        display: ['Georgia', 'Songti SC', 'Noto Serif CJK SC', 'SimSun', 'serif'],
         mono: ['Cascadia Mono', 'Consolas', 'Menlo', 'monospace'],
       },
       fontSize: {
         '2xs': ['11px', '16px'],
       },
       borderRadius: {
-        card: '10px',
-        control: '7px',
+        card: '8px',
+        control: '8px',
       },
       boxShadow: {
-        card: '0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06)',
-        pop: '0 6px 16px rgb(15 23 42 / 0.10), 0 2px 6px rgb(15 23 42 / 0.06)',
+        card: '0 0 0 1px rgb(var(--c-ring))',
+        pop: '0 4px 24px rgb(var(--c-shadow) / 0.05)',
       },
       keyframes: {
         'fade-in': {

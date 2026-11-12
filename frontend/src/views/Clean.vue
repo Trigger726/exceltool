@@ -366,7 +366,7 @@ onBeforeUnmount(() => {
 
     <div class="workspace flex-1 space-y-4 overflow-auto">
       <!-- 1. 文件选择 -->
-      <section class="card p-4">
+      <section class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">1 · 选择要清洗的文件</h2>
         <div class="workflow-grid grid items-start gap-3">
           <FilePicker
@@ -385,7 +385,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 2. 清洗规则 -->
-      <section v-if="file.path.value" class="card p-4">
+      <section v-if="file.path.value" class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">2 · 清洗规则</h2>
         <div v-if="suggestion" class="recommendation mb-3">
           <p>{{ suggestionText || '抽查前 500 条记录后，暂无额外规则建议。' }}</p>
@@ -548,7 +548,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 3. 数据预览 -->
-      <section v-if="file.path.value" class="card p-4">
+      <section v-if="file.path.value" class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">数据预览</h2>
         <DataTable
           class="max-h-[300px]"
@@ -563,7 +563,7 @@ onBeforeUnmount(() => {
       <ExportFeedback v-if="exportedPath && !settingsChanged" :path="exportedPath" />
 
       <!-- 结果 -->
-      <section v-if="result" ref="resultsPanel" class="card p-4">
+      <section v-if="result" ref="resultsPanel" class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">3 · 清洗结果</h2>
         <NoticeList v-if="settingsChanged" class="mb-3" :messages="['下方显示上一次的结果。文件或配置已更改，请重新运行后再导出。']" />
         <div class="stat-grid grid gap-3">

@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
 
     <div class="workspace flex-1 space-y-4 overflow-auto">
       <!-- 1. 文件列表 -->
-      <section class="card p-4">
+      <section class="card workflow-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-semibold">1 · 待合并的文件</h2>
           <div class="flex gap-2">
@@ -420,7 +420,7 @@ onBeforeUnmount(() => {
         <p v-if="loading" role="status" class="mb-2 text-sm text-ink-muted">正在读取文件和列名…</p>
         <div
           v-if="!sources.length"
-          class="rounded-control border border-dashed border-line px-4 py-8 text-center text-sm text-ink-muted"
+          class="drop-surface px-4 py-10 text-center text-sm text-ink-muted"
         >
           点击“添加文件”选择多个 Excel，或直接把文件拖进窗口。
         </div>
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 2. 字段映射 -->
-      <section v-if="sources.length" class="card p-4">
+      <section v-if="sources.length" class="card workflow-panel">
         <h2 class="mb-2 text-sm font-semibold">2 · 确认列如何对齐</h2>
         <p class="mb-3 text-xs text-ink-muted">同名列自动对齐。未对齐的列单独保留，缺失处留空。</p>
         <div v-if="plan?.suggestions.length" class="recommendation mb-3">
@@ -558,7 +558,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- 3. 合并预览 -->
-      <section v-if="plan" class="card p-4">
+      <section v-if="plan" class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">合并结果字段</h2>
         <div class="flex flex-wrap gap-1.5">
           <span v-for="column in plan.target_columns" :key="column" class="chip chip-neutral">
@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
       <ExportFeedback v-if="exportedPath && !settingsChanged" :path="exportedPath" />
 
       <!-- 结果 -->
-      <section v-if="result" ref="resultsPanel" class="card p-4">
+      <section v-if="result" ref="resultsPanel" class="card workflow-panel">
         <h2 class="mb-3 text-sm font-semibold">3 · 合并结果</h2>
         <NoticeList v-if="settingsChanged" class="mb-3" :messages="['下方显示上一次的结果。文件或配置已更改，请重新运行后再导出。']" />
         <div class="stat-grid grid gap-3">
